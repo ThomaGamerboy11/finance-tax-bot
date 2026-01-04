@@ -91,17 +91,9 @@ async function postDailyTaxEmbed(trigger = "auto") {
       .setColor(0x2ecc71)
       .setTitle("💰 Saldo Atual")
       .setDescription(`## ${formatEuro(newBalance)}`)
-      .setFooter({
-        text:
-          trigger === "manual"
-            ? "Atualização manual"
-            : "Atualização automática • 08:00 (Lisboa)",
-      })
-      .setTimestamp(new Date());
 
     await channel.send({
       embeds: [embed],
-      content: `- *Valor Corrente na Conta:* ${formatEuro(newBalance)}`,
       allowedMentions: { parse: [] },
     });
 
