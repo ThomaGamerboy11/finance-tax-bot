@@ -71,13 +71,10 @@ async function findLatestBalance(channel) {
   return last24hCandidate || anyCandidate;
 }
 
-async function postDailyTaxEmbed() {
+async function postDailyTaxEmbed(trigger = "auto") {
   try {
     const channel = await client.channels.fetch(FINANCE_CHANNEL_ID);
-    if (!channel || !channel.isTextBased()) {
-      console.error("FINANCE_CHANNEL_ID não é um canal de texto válido.");
-      return;
-    }
+    if (!channel || !channel.isTextBased()) return;
 
     const found = await findLatestBalance(channel);
     if (!found) {
@@ -90,15 +87,18 @@ async function postDailyTaxEmbed() {
     const deducted = previous * taxRate;
     const newBalance = previous - deducted;
 
-    // ✅ EMBED verde + emoji + valor grande (estilo “painel”)
     const embed = new EmbedBuilder()
-      .setColor(0x2ecc71) // verde
+      .setColor(0x2ecc71)
       .setTitle("💰 Saldo Atual")
       .setDescription(`## ${formatEuro(newBalance)}`)
-      .setFooter({ text: "Atualizado automaticamente às 08:00 (Lisboa)" })
+      .setFooter({
+        text:
+          trigger === "manual"
+            ? "Atualização manual"
+            : "Atualização automática • 08:00 (Lisboa)",
+      })
       .setTimestamp(new Date());
 
-    // ✅ Mantém também a linha em texto normal para o bot ler amanhã
     await channel.send({
       embeds: [embed],
       content: `- *Valor Corrente na Conta:* ${formatEuro(newBalance)}`,
@@ -110,17 +110,28 @@ async function postDailyTaxEmbed() {
   }
 }
 
+/* 🔧 COMANDO MANUAL !saldo */
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+  if (message.channel.id !== FINANCE_CHANNEL_ID) return;
+
+  if (message.content.toLowerCase() === "!saldo") {
+    await postDailyTaxEmbed("manual");
+  }
+});
+
 client.once("ready", () => {
-  console.log(`Online como ${client.user.tag}`);
+  console.log(`🟢 Online como ${client.user.tag}`);
 
-  // Todos os dias às 08:00 (Lisboa)
-  cron.schedule("0 8 * * *", () => {
-    postDailyTaxEmbed();
-  }, {
-    timezone: "Europe/Lisbon",
-  });
+  cron.schedule(
+    "0 8 * * *",
+    () => {
+      postDailyTaxEmbed("auto");
+    },
+    { timezone: "Europe/Lisbon" }
+  );
 
-  console.log("Scheduler ativo: todos os dias às 08:00 (Europe/Lisbon).");
+  console.log("⏰ Scheduler ativo: todos os dias às 08:00 (Lisboa)");
 });
 
 client.login(TOKEN);
