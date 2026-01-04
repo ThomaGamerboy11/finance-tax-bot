@@ -89,8 +89,8 @@ async function postDailyTaxEmbed(trigger = "auto") {
 
     const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
-      .setTitle("💰 Saldo Atual")
-      .setDescription(`## ${formatEuro(newBalance)}`)
+      .setTitle("💵 Saldo Atual")
+      .setDescription(`${formatEuro(newBalance)}`)
 
     await channel.send({
       embeds: [embed],
