@@ -88,7 +88,7 @@ async function postDailyTaxEmbed(trigger = "auto") {
     const newBalance = previous - deducted;
 
     const embed = new EmbedBuilder()
-      .setColor(0x2ecc71)
+      .setColor(0xe74c3c)
       .setTitle("💰 Saldo Atual")
       .setDescription(`## ${formatEuro(newBalance)}`)
 
