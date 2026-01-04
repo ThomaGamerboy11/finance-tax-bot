@@ -22,13 +22,44 @@ const client = new Client({
 // Template humano: - *Valor Corrente na Conta:* X.XXX.XXX€
 const BALANCE_REGEX = /Valor Corrente na Conta:\*\s*([\d.\s]+(?:,\d{1,2})?)\s*€/i;
 
-// Embed do bot: "## 1.331.239€" dentro da descrição
-const EMBED_BALANCE_REGEX = /##\s*([\d.\s]+)\s*€/i;
+// Para ler valores com € do embed (qualquer formato)
+const ANY_EURO_NUMBER_REGEX = /([\d.\s]+)\s*€/i;
 
 function parsePtNumber(str) {
   const clean = str.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
   const num = Number(clean);
   return Number.isFinite(num) ? num : null;
+}
+
+// Formato desejado: x.xxx.xxx€
+function formatEuro(num) {
+  return (
+    new Intl.NumberFormat("pt-PT", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Math.round(num)) + "€"
+  );
+}
+
+function extractBalanceFromEmbed(embed) {
+  const parts = [];
+
+  if (embed?.title) parts.push(String(embed.title));
+  if (embed?.description) parts.push(String(embed.description));
+
+  // discord.js v14: embed pode ter fields
+  if (Array.isArray(embed?.fields)) {
+    for (const f of embed.fields) {
+      if (f?.name) parts.push(String(f.name));
+      if (f?.value) parts.push(String(f.value));
+    }
+  }
+
+  const joined = parts.join("\n");
+  const m = joined.match(ANY_EURO_NUMBER_REGEX);
+  if (!m) return null;
+
+  return parsePtNumber(m[1]);
 }
 
 async function findLatestBalance(channel) {
@@ -47,15 +78,15 @@ async function findLatestBalance(channel) {
     if (batch.size === 0) break;
 
     for (const msg of batch.values()) {
-      // 1) TENTAR LER DO TEMPLATE NORMAL
+      // 1) LER DO TEMPLATE HUMANO
       const content = msg.content || "";
       const match = content.match(BALANCE_REGEX);
       if (match) {
         const parsed = parsePtNumber(match[1]);
         if (parsed !== null) {
-          if (!anyCandidate) anyCandidate = { value: parsed };
+          if (!anyCandidate) anyCandidate = { value: parsed, source: "template" };
           if (now - msg.createdTimestamp <= last24hMs) {
-            if (!last24hCandidate) last24hCandidate = { value: parsed };
+            if (!last24hCandidate) last24hCandidate = { value: parsed, source: "template" };
           }
         }
       }
@@ -63,18 +94,15 @@ async function findLatestBalance(channel) {
       // 2) SE NÃO HÁ TEMPLATE, LER DO ÚLTIMO EMBED DO BOT
       if (msg.author?.id === client.user.id && msg.embeds?.length > 0) {
         const e = msg.embeds[0];
-        const title = e.title || "";
-        const desc = e.description || "";
+        const title = (e.title || "").toLowerCase();
 
-        if (title.includes("Saldo Atual") && desc) {
-          const m2 = desc.match(EMBED_BALANCE_REGEX);
-          if (m2) {
-            const parsed2 = parsePtNumber(m2[1]);
-            if (parsed2 !== null) {
-              if (!anyCandidate) anyCandidate = { value: parsed2 };
-              if (now - msg.createdTimestamp <= last24hMs) {
-                if (!last24hCandidate) last24hCandidate = { value: parsed2 };
-              }
+        // só aceitar embeds do bot que sejam o "Saldo Atual"
+        if (title.includes("saldo atual")) {
+          const parsed2 = extractBalanceFromEmbed(e);
+          if (parsed2 !== null) {
+            if (!anyCandidate) anyCandidate = { value: parsed2, source: "embed" };
+            if (now - msg.createdTimestamp <= last24hMs) {
+              if (!last24hCandidate) last24hCandidate = { value: parsed2, source: "embed" };
             }
           }
         }
@@ -89,7 +117,6 @@ async function findLatestBalance(channel) {
   return last24hCandidate || anyCandidate;
 }
 
-
 async function postDailyTaxEmbed(trigger = "auto") {
   try {
     const channel = await client.channels.fetch(FINANCE_CHANNEL_ID);
@@ -101,21 +128,22 @@ async function postDailyTaxEmbed(trigger = "auto") {
       return;
     }
 
+    console.log("Saldo base:", found.value, "Fonte:", found.source);
+
     const previous = found.value;
     const taxRate = 0.02;
     const deducted = previous * taxRate;
     const newBalance = previous - deducted;
 
     const embed = new EmbedBuilder()
-     .setColor(0xe74c3c) // vermelho
-     .setTitle("💲 Saldo Atual:")
-     .setDescription(` ### ${formatEuro(newBalance)}`);
+      .setColor(0x661515) // vermelho escuro (podes trocar se quiseres)
+      .setTitle("💲 Saldo Atual:")
+      .setDescription(`### ${formatEuro(newBalance)}`);
 
     await channel.send({
       embeds: [embed],
       allowedMentions: { parse: [] },
     });
-
   } catch (err) {
     console.error("Erro no postDailyTaxEmbed:", err?.message || err);
   }
@@ -146,3 +174,4 @@ client.once("ready", () => {
 });
 
 client.login(TOKEN);
+
