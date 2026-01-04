@@ -155,9 +155,17 @@ client.on("messageCreate", async (message) => {
   if (message.channel.id !== FINANCE_CHANNEL_ID) return;
 
   if (message.content.toLowerCase() === "!saldo") {
+    // apagar a mensagem do comando
+    try {
+      await message.delete();
+    } catch (e) {
+      console.warn("Não consegui apagar a mensagem !saldo (permissões?)");
+    }
+
     await postDailyTaxEmbed("manual");
   }
 });
+
 
 client.once("ready", () => {
   console.log(`🟢 Online como ${client.user.tag}`);
