@@ -30,9 +30,9 @@ function parseEuroNumber(str) {
 
 function formatEuro(num) {
   return new Intl.NumberFormat("pt-PT", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(num) + "€";
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.round(num)) + "€";
 }
 
 async function findLatestBalance(channel) {
@@ -89,8 +89,8 @@ async function postDailyTaxEmbed(trigger = "auto") {
 
     const embed = new EmbedBuilder()
      .setColor(0xe74c3c) // vermelho
-     .setTitle("🪙 Saldo Atual:")
-     .setDescription(` **${formatEuro(newBalance)}**`);
+     .setTitle("💲 Saldo Atual:")
+     .setDescription(` ### ${formatEuro(newBalance)}**`);
 
     await channel.send({
       embeds: [embed],
