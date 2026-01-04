@@ -19,20 +19,16 @@ const client = new Client({
   ],
 });
 
-// Apanha: - *Valor Corrente na Conta:* X.XXX.XXX€
+// Template humano: - *Valor Corrente na Conta:* X.XXX.XXX€
 const BALANCE_REGEX = /Valor Corrente na Conta:\*\s*([\d.\s]+(?:,\d{1,2})?)\s*€/i;
 
-function parseEuroNumber(str) {
+// Embed do bot: "## 1.331.239€" dentro da descrição
+const EMBED_BALANCE_REGEX = /##\s*([\d.\s]+)\s*€/i;
+
+function parsePtNumber(str) {
   const clean = str.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
   const num = Number(clean);
   return Number.isFinite(num) ? num : null;
-}
-
-function formatEuro(num) {
-  return new Intl.NumberFormat("pt-PT", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(Math.round(num)) + "€";
 }
 
 async function findLatestBalance(channel) {
@@ -43,7 +39,7 @@ async function findLatestBalance(channel) {
   let anyCandidate = null;
 
   let beforeId = null;
-  const MAX_PAGES = 25;
+  const MAX_PAGES = 30;
   const PAGE_SIZE = 100;
 
   for (let page = 0; page < MAX_PAGES; page++) {
@@ -51,17 +47,39 @@ async function findLatestBalance(channel) {
     if (batch.size === 0) break;
 
     for (const msg of batch.values()) {
+      // 1) TENTAR LER DO TEMPLATE NORMAL
       const content = msg.content || "";
       const match = content.match(BALANCE_REGEX);
       if (match) {
-        const parsed = parseEuroNumber(match[1]);
+        const parsed = parsePtNumber(match[1]);
         if (parsed !== null) {
-          if (!anyCandidate) anyCandidate = { value: parsed, message: msg };
+          if (!anyCandidate) anyCandidate = { value: parsed };
           if (now - msg.createdTimestamp <= last24hMs) {
-            if (!last24hCandidate) last24hCandidate = { value: parsed, message: msg };
+            if (!last24hCandidate) last24hCandidate = { value: parsed };
           }
         }
       }
+
+      // 2) SE NÃO HÁ TEMPLATE, LER DO ÚLTIMO EMBED DO BOT
+      if (msg.author?.id === client.user.id && msg.embeds?.length > 0) {
+        const e = msg.embeds[0];
+        const title = e.title || "";
+        const desc = e.description || "";
+
+        if (title.includes("Saldo Atual") && desc) {
+          const m2 = desc.match(EMBED_BALANCE_REGEX);
+          if (m2) {
+            const parsed2 = parsePtNumber(m2[1]);
+            if (parsed2 !== null) {
+              if (!anyCandidate) anyCandidate = { value: parsed2 };
+              if (now - msg.createdTimestamp <= last24hMs) {
+                if (!last24hCandidate) last24hCandidate = { value: parsed2 };
+              }
+            }
+          }
+        }
+      }
+
       beforeId = msg.id;
     }
 
@@ -70,6 +88,7 @@ async function findLatestBalance(channel) {
 
   return last24hCandidate || anyCandidate;
 }
+
 
 async function postDailyTaxEmbed(trigger = "auto") {
   try {
