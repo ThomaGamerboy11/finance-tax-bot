@@ -90,19 +90,15 @@ async function postDailyTaxEmbed() {
     const deducted = previous * taxRate;
     const newBalance = previous - deducted;
 
+    // ✅ EMBED verde + emoji + valor grande (estilo “painel”)
     const embed = new EmbedBuilder()
-      .setTitle("Imposto Diário (2%) — Atualização de Saldo")
-      .setDescription(
-        [
-          `- *Saldo anterior:* **${formatEuro(previous)}**`,
-          `- *Imposto (2%):* **${formatEuro(deducted)}**`,
-          `- *Valor Corrente na Conta:* **${formatEuro(newBalance)}**`,
-        ].join("\n")
-      )
-      .setFooter({ text: "Registo automático às 08:00 (Europe/Lisbon)" })
+      .setColor(0x2ecc71) // verde
+      .setTitle("💰 Saldo Atual")
+      .setDescription(`## ${formatEuro(newBalance)}`)
+      .setFooter({ text: "Atualizado automaticamente às 08:00 (Lisboa)" })
       .setTimestamp(new Date());
 
-    // Importante: enviar também a linha “Valor Corrente…” em texto normal para o bot ler amanhã
+    // ✅ Mantém também a linha em texto normal para o bot ler amanhã
     await channel.send({
       embeds: [embed],
       content: `- *Valor Corrente na Conta:* ${formatEuro(newBalance)}`,
