@@ -131,7 +131,7 @@ async function postDailyTaxEmbed(trigger = "auto") {
     console.log("Saldo base:", found.value, "Fonte:", found.source);
 
     const previous = found.value;
-    const taxRate = 0.002;
+    const taxRate = 0.02;
     const deducted = previous * taxRate;
     const newBalance = previous - deducted;
 
