@@ -19,6 +19,25 @@ const client = new Client({
   ],
 });
 
+/**
+ * ✅ ESCALÕES (edita aqui)
+ * Regras: o bot escolhe o PRIMEIRO escalão cujo "min" seja <= saldo.
+ * Ordena por min desc (do maior para o menor).
+ *
+ * Pelos teus exemplos:
+ * - Há uma taxa ~2.5% (2.4999%)
+ * - Há uma taxa ~1.064482%
+ *
+ * ⚠️ Ajusta os limites (min) conforme a regra real do teu sistema.
+ */
+const TAX_BRACKETS = [
+  // Exemplo: saldos a partir de X usam ~1.064482% (AJUSTA o X real!)
+  { min: 1350000, rate: 0.010644821471031877 }, // ~1.064482%
+
+  // Exemplo: abaixo disso usam 2.5%
+  { min: 0, rate: 0.025 }, // 2.5%
+];
+
 // Template humano: - *Valor Corrente na Conta:* X.XXX.XXX€
 const BALANCE_REGEX = /Valor Corrente na Conta:\*\s*([\d.\s]+(?:,\d{1,2})?)\s*€/i;
 
@@ -47,7 +66,6 @@ function extractBalanceFromEmbed(embed) {
   if (embed?.title) parts.push(String(embed.title));
   if (embed?.description) parts.push(String(embed.description));
 
-  // discord.js v14: embed pode ter fields
   if (Array.isArray(embed?.fields)) {
     for (const f of embed.fields) {
       if (f?.name) parts.push(String(f.name));
@@ -60,6 +78,15 @@ function extractBalanceFromEmbed(embed) {
   if (!m) return null;
 
   return parsePtNumber(m[1]);
+}
+
+function getTaxRate(balance) {
+  // escolhe o primeiro bracket cujo min <= balance
+  for (const b of TAX_BRACKETS) {
+    if (balance >= b.min) return b.rate;
+  }
+  // fallback (não devia acontecer porque tens {min:0})
+  return 0.025;
 }
 
 async function findLatestBalance(channel) {
@@ -96,7 +123,6 @@ async function findLatestBalance(channel) {
         const e = msg.embeds[0];
         const title = (e.title || "").toLowerCase();
 
-        // só aceitar embeds do bot que sejam o "Saldo Atual"
         if (title.includes("saldo atual")) {
           const parsed2 = extractBalanceFromEmbed(e);
           if (parsed2 !== null) {
@@ -128,15 +154,22 @@ async function postDailyTaxEmbed(trigger = "auto") {
       return;
     }
 
-    console.log("Saldo base:", found.value, "Fonte:", found.source);
-
     const previous = found.value;
-    const taxRate = 0.02;
+
+    // ✅ taxa variável por escalão
+    const taxRate = getTaxRate(previous);
+
     const deducted = previous * taxRate;
     const newBalance = previous - deducted;
 
+    console.log(
+      "Saldo base:", previous,
+      "Fonte:", found.source,
+      "Taxa:", (taxRate * 100).toFixed(4) + "%"
+    );
+
     const embed = new EmbedBuilder()
-      .setColor(0x661515) // vermelho escuro (podes trocar se quiseres)
+      .setColor(0x661515)
       .setTitle("💲 Saldo Atual:")
       .setDescription(`### ${formatEuro(newBalance)}`);
 
@@ -155,17 +188,15 @@ client.on("messageCreate", async (message) => {
   if (message.channel.id !== FINANCE_CHANNEL_ID) return;
 
   if (message.content.toLowerCase() === "!saldo") {
-    // apagar a mensagem do comando
     try {
       await message.delete();
-    } catch (e) {
+    } catch {
       console.warn("Não consegui apagar a mensagem !saldo (permissões?)");
     }
 
     await postDailyTaxEmbed("manual");
   }
 });
-
 
 client.once("ready", () => {
   console.log(`🟢 Online como ${client.user.tag}`);
@@ -182,4 +213,5 @@ client.once("ready", () => {
 });
 
 client.login(TOKEN);
+
 
