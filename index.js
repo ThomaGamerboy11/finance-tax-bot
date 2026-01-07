@@ -20,22 +20,18 @@ const client = new Client({
 });
 
 /**
- * ✅ ESCALÕES (edita aqui)
- * Regras: o bot escolhe o PRIMEIRO escalão cujo "min" seja <= saldo.
- * Ordena por min desc (do maior para o menor).
- *
- * Pelos teus exemplos:
- * - Há uma taxa ~2.5% (2.4999%)
- * - Há uma taxa ~1.064482%
- *
- * ⚠️ Ajusta os limites (min) conforme a regra real do teu sistema.
+/**
+ * TAXAS POR ESCALÃO
+ * Regra observada:
+ * - Regra geral: 2.5%
+ * - Exceção conhecida (~1.06448%) em torno de 1.35M
  */
 const TAX_BRACKETS = [
-  // Exemplo: saldos a partir de X usam ~1.064482% (AJUSTA o X real!)
-  { min: 1350000, rate: 0.010644821471031877 }, // ~1.064482%
+  // EXCEÇÃO conhecida
+  { min: 1350000, max: 1400000, rate: 0.010644821471031877 },
 
-  // Exemplo: abaixo disso usam 2.5%
-  { min: 0, rate: 0.025 }, // 2.5%
+  // REGRA GERAL
+  { min: 0, max: Infinity, rate: 0.025 },
 ];
 
 // Template humano: - *Valor Corrente na Conta:* X.XXX.XXX€
@@ -81,14 +77,13 @@ function extractBalanceFromEmbed(embed) {
 }
 
 function getTaxRate(balance) {
-  // escolhe o primeiro bracket cujo min <= balance
   for (const b of TAX_BRACKETS) {
-    if (balance >= b.min) return b.rate;
+    if (balance >= b.min && balance < b.max) {
+      return b.rate;
+    }
   }
-  // fallback (não devia acontecer porque tens {min:0})
-  return 0.025;
+  return 0.025; // fallback seguro
 }
-
 async function findLatestBalance(channel) {
   const now = Date.now();
   const last24hMs = 24 * 60 * 60 * 1000;
